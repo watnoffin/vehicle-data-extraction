@@ -1,0 +1,9 @@
+# requirements.txt
+streamlit
+ultralytics
+pytesseract
+opencv-python
+pymongo
+google-genai
+imutils
+numpy
