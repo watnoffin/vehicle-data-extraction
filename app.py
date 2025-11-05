@@ -40,13 +40,16 @@ data_collection = mongo_db.vehicle_data
 
 # --- TESSERACT & YOLO CONFIGURATION ---
 try:
-    pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+    # pytesseract.pytesseract.tesseract_cmd = r'models/tesseract.exe'
+    # pass
+    # Set the path to the standard Tesseract executable location on Linux
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 except Exception:
     pass
 
 @st.cache_resource
 def load_yolo_model():
-    return YOLO(r'C:/Users/Fatin/OneDrive/Documents/car/models/license-plate-finetune-v1s.pt')
+    return YOLO(r'model/license-plate-finetune-v1s.pt')
 
 yolo_model = load_yolo_model()
 
@@ -214,9 +217,9 @@ if uploaded_files:
                 col_img, col_data = st.columns([1, 1])
                 
                 with col_img:
-                    st.image(cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB), caption=f"Original: {file_name}", use_column_width='auto')
+                    st.image(cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB), caption=f"Original: {file_name}", width='stretch')
                     if result_image_rgb is not None:
-                        st.image(result_image_rgb, caption='Detected Plate', use_column_width='auto')
+                        st.image(result_image_rgb, caption='Detected Plate', width='stretch')
 
                 with col_data:
                     st.subheader("Extracted Data")
