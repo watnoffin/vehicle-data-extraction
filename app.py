@@ -264,16 +264,21 @@ def save_data_to_mongodb(
 
 # --- Clear All Function ---
 def clear_all_data():
-    # Delete all keys that store user input or analysis results
-    if 'analysis_results' in st.session_state:
-        del st.session_state['analysis_results']
-    if 'run_analysis' in st.session_state:
-        del st.session_state['run_analysis']
-        
-    if 'uploader_key' in st.session_state:
-        del st.session_state['uploader_key'] 
+    """Clears all relevant session state data and forces the file uploader to reset."""
     
-    # Force a rerun to clear the files and redraw the initial UI
+    # 1. Clear all analysis results and flags
+    for key in ['analysis_results', 'run_analysis']:
+        if key in st.session_state:
+            del st.session_state[key]
+        
+    # 2. Force reset of st.file_uploader by changing its key
+    # This is the fix for the file uploader not clearing.
+    if 'file_uploader_key' not in st.session_state:
+         st.session_state['file_uploader_key'] = 0
+         
+    st.session_state['file_uploader_key'] += 1 # Increment the key to force reset
+    
+    # Force a rerun
     st.rerun()
 
 # --- Streamlit App Interface ---
