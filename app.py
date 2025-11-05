@@ -264,14 +264,16 @@ def save_data_to_mongodb(
 
 # --- Clear All Function ---
 def clear_all_data():
-    """Clears all relevant session state data and reruns the page."""
     # Delete all keys that store user input or analysis results
     if 'analysis_results' in st.session_state:
         del st.session_state['analysis_results']
     if 'run_analysis' in st.session_state:
         del st.session_state['run_analysis']
+        
+    if 'uploader_key' in st.session_state:
+        del st.session_state['uploader_key'] 
     
-    # Force a rerun to clear file uploader and redraw the initial UI
+    # Force a rerun to clear the files and redraw the initial UI
     st.rerun()
 
 # --- Streamlit App Interface ---
