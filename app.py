@@ -25,8 +25,9 @@ def show_alert(message):
     alert('{message}');
     </script>
     """
+    # Use st.markdown to inject the script. Streamlit executes the script upon rendering.
     st.markdown(alert_js, unsafe_allow_html=True)
-
+# --- END NEW HELPER FUNCTION ---
 
 # --- GEMINI & MONGODB Initialization ---
 try:
@@ -40,7 +41,7 @@ except Exception as e:
     st.error(f"Gemini API key not found or error initializing client: {e}")
     st.stop()
 
-# --- MongoDB Configuration ---
+# --- MongoDB Configuration (Cached) ---
 @st.cache_resource
 def init_mongodb():
     try:
@@ -75,7 +76,7 @@ def load_yolo_model():
 
 yolo_model = load_yolo_model()
 
-# --- GEMINI Helper Function: Specification Extraction ---
+# --- GEMINI Helper Function: Specification Extraction (Unchanged) ---
 def analyze_vehicle_specifications(image_bytes: bytes, mime_type: str) -> dict:
     """Analyzes a single vehicle image using the Gemini API and returns its specifications as a dictionary."""
     
@@ -124,7 +125,7 @@ def analyze_vehicle_specifications(image_bytes: bytes, mime_type: str) -> dict:
             "year": "Error", "color": "Error"
         }
 
-# --- OCR/ANPR Function (YOLO + TESSERACT) ---
+# --- OCR/ANPR Function (YOLO + TESSERACT) (Unchanged) ---
 def recognize_license_plate_ocr(image):
     """Recognizes license plate using YOLO detection and Tesseract OCR."""
     
@@ -169,7 +170,7 @@ def recognize_license_plate_ocr(image):
     cleaned_text = re.sub(r'[^A-Z0-9]', '', raw_plate_text)
     final_plate_text = cleaned_text.strip().replace(" ", "").upper()
     
-    # --- Prepare Final Output Image ---
+    # --- Prepare Final Output Image (Green Box) ---
     w_roi, h_roi = final_image.shape[1], final_image.shape[0]
     cv2.rectangle(final_image, (0, 0), (w_roi - 1, h_roi - 1), (0, 255, 0), 3)
     
@@ -181,7 +182,7 @@ def recognize_license_plate_ocr(image):
         
     return None, "Plate detected, but no characters recognized (OCR).", None
 
-# --- GEMINI Helper Function: Plate Extraction ---
+# --- GEMINI Helper Function: Plate Extraction (Unchanged) ---
 def recognize_license_plate_gemini(image_bytes: bytes, mime_type: str):
     """Analyzes a single vehicle image using the Gemini API to extract the license plate number."""
     base64_encoded_image = base64.b64encode(image_bytes).decode("utf-8")
@@ -225,7 +226,7 @@ def recognize_license_plate_gemini(image_bytes: bytes, mime_type: str):
         st.error(f"⚠️ Gemini API Error for Plate Recognition: {e}")
         return None, "Error during Gemini plate recognition."
 
-# --- MongoDB Storage Function ---
+# --- MongoDB Storage Function (Unchanged) ---
 def save_data_to_mongodb(
         file_name, file_bytes, mime_type, 
         plate_text, plate_status, specs
@@ -261,10 +262,34 @@ def save_data_to_mongodb(
     except Exception as e:
         return False, str(e)
 
+# --- Clear All Function ---
+def clear_all_data():
+    """Clears all relevant session state data and reruns the page."""
+    # Delete all keys that store user input or analysis results
+    if 'analysis_results' in st.session_state:
+        del st.session_state['analysis_results']
+    if 'run_analysis' in st.session_state:
+        del st.session_state['run_analysis']
+    
+    # Force a rerun to clear file uploader and redraw the initial UI
+    st.rerun()
 
 # --- Streamlit App Interface ---
 st.set_page_config(page_title="Vehicle Plate Recognition & Specification", layout="wide")
 st.title("License Plate Recognition & Vehicle Specification Extraction")
+
+# --- CUSTOM CSS BLOCK for LARGER PLATE TEXT---
+st.markdown("""
+<style>
+/* Target the element that contains the green license plate text (inline code block) */
+.stMarkdown code {
+    font-size: 1.5em !important; /* Increase the font size */
+    font-weight: bold;
+    padding: 0.2em 0.4em; /* Adjust padding for better look */
+}
+</style>
+""", unsafe_allow_html=True)
+# --- END CUSTOM CSS BLOCK ---
 
 st.markdown("Upload **car images**. We will process each image sequentially.")
 st.markdown("---")
@@ -278,10 +303,13 @@ uploaded_files = st.file_uploader("Upload Image(s) (JPG or PNG)",
                                   type=["jpg", "jpeg", "png"],
                                   accept_multiple_files=True)
 
-if uploaded_files:
+col_buttons_1, col_buttons_2, _ = st.columns([1, 1, 3])
 
-    if st.button(f'Analyze {len(uploaded_files)} Vehicle(s)', 
+if uploaded_files:
+    # --- Analyze Button ---
+    if col_buttons_1.button(f'Analyze {len(uploaded_files)} Vehicle(s)', 
                  type="primary", 
+                 key="analyze_btn",
                  help="Start the initial analysis using the default YOLO/OCR for plate extraction and Gemini for specifications."):
         st.session_state['analysis_results'] = [] # Clear previous results
         st.session_state['run_analysis'] = True
@@ -289,9 +317,17 @@ if uploaded_files:
         # Only set run_analysis to False if no initial run has occurred or if button wasn't clicked
         if not st.session_state.get('analysis_results'):
              st.session_state['run_analysis'] = False
-        
-    st.markdown("---")
+             
+# --- Clear All Button (Placed next to Analyze Button) ---
+if col_buttons_2.button("🗑️ Clear All Data & Restart", 
+                       key="clear_btn",
+                       help="Clears all uploaded files, analysis results, and resets the page.",
+                       type="secondary"):
+    clear_all_data()
 
+st.markdown("---")
+
+if uploaded_files:
     if st.session_state.get('run_analysis', False) or st.session_state.get('analysis_results'):
         
         if st.session_state.get('run_analysis', False):
@@ -342,7 +378,7 @@ if uploaded_files:
             st.success(f"Analysis complete for {total_files} record(s).")
             # --- END Initial Batch Status ---
             
-        # --- Display and Interactive Section---
+        # --- Display and Interactive Section (Runs after initial or reload) ---
         
         if st.session_state['analysis_results']:
             
@@ -381,7 +417,8 @@ if uploaded_files:
                     with col_data:
                         st.markdown(f"**Plate Status:** {'✅ SAVED' if record['saved'] else '⚠️ PENDING SAVE'}")
                         st.markdown("---")
-                        st.markdown(f"**License Plate:** **{record['plate_text'] if record['plate_text'] else 'NOT RECOGNIZED'}**") 
+                        # Uses the CSS-enlarged inline code block
+                        st.markdown(f"**Current License Plate:** **`{record['plate_text'] if record['plate_text'] else 'NOT RECOGNIZED'}`**") 
                         st.markdown(f"**Method:** *{record['plate_status']}*")
                         st.markdown("---")
                         st.markdown(f"**Type:** {record['specs'].get('type', 'N/A').title()}")
@@ -448,8 +485,8 @@ if uploaded_files:
 
                 st.markdown("---") # Separator between records
             
-
-            # Check if there are any unsaved records to enable the button
+            
+            # --- SAVE ALL BUTTON SECTION (at the bottom) ---
             unsaved_records = [r for r in st.session_state['analysis_results'] if not r['saved']]
             total_unsaved = len(unsaved_records)
             
@@ -497,11 +534,11 @@ if uploaded_files:
                 st.success("All analyzed records have been successfully saved to MongoDB.")
                 
         else:
-            st.info(f"Click the button above to begin initial analysis for the {len(uploaded_files)} uploaded image(s).")
+            st.info(f"Click the Analyze Vehicle(s) button above to begin initial analysis for the {len(uploaded_files)} uploaded image(s).")
 else:
     st.info("Please upload one or more images to begin.")
 
-# --- Footer Section ---
+# --- Footer Section (Unchanged) ---
 st.markdown("---")
 
 footer_html = """
