@@ -18,6 +18,7 @@ import datetime
 # --- CONSTANTS ---
 MAX_IMAGE_DISPLAY_WIDTH = 500 # Max width for displaying images in Streamlit
 
+# --- NEW HELPER FUNCTION FOR JAVASCRIPT ALERT ---
 def show_alert(message):
     """Injects JavaScript to display a standard browser alert popup."""
     alert_js = f"""
@@ -76,7 +77,7 @@ def load_yolo_model():
 
 yolo_model = load_yolo_model()
 
-# --- GEMINI Helper Function: Specification Extraction (Unchanged) ---
+# --- GEMINI Helper Function: Specification Extraction ---
 def analyze_vehicle_specifications(image_bytes: bytes, mime_type: str) -> dict:
     """Analyzes a single vehicle image using the Gemini API and returns its specifications as a dictionary."""
     
@@ -125,7 +126,7 @@ def analyze_vehicle_specifications(image_bytes: bytes, mime_type: str) -> dict:
             "year": "Error", "color": "Error"
         }
 
-# --- OCR/ANPR Function (YOLO + TESSERACT) (Unchanged) ---
+# --- OCR/ANPR Function (YOLO + TESSERACT) ---
 def recognize_license_plate_ocr(image):
     """Recognizes license plate using YOLO detection and Tesseract OCR."""
     
@@ -182,7 +183,7 @@ def recognize_license_plate_ocr(image):
         
     return None, "Plate detected, but no characters recognized (OCR).", None
 
-# --- GEMINI Helper Function: Plate Extraction (Unchanged) ---
+# --- GEMINI Helper Function: Plate Extraction ---
 def recognize_license_plate_gemini(image_bytes: bytes, mime_type: str):
     """Analyzes a single vehicle image using the Gemini API to extract the license plate number."""
     base64_encoded_image = base64.b64encode(image_bytes).decode("utf-8")
@@ -226,7 +227,7 @@ def recognize_license_plate_gemini(image_bytes: bytes, mime_type: str):
         st.error(f"⚠️ Gemini API Error for Plate Recognition: {e}")
         return None, "Error during Gemini plate recognition."
 
-# --- MongoDB Storage Function (Unchanged) ---
+# --- MongoDB Storage Function ---
 def save_data_to_mongodb(
         file_name, file_bytes, mime_type, 
         plate_text, plate_status, specs
@@ -262,7 +263,7 @@ def save_data_to_mongodb(
     except Exception as e:
         return False, str(e)
 
-# --- Clear All Function ---
+# --- Clear All Function  ---
 def clear_all_data():
     """Clears all relevant session state data and forces the file uploader to reset."""
     
@@ -272,7 +273,6 @@ def clear_all_data():
             del st.session_state[key]
         
     # 2. Force reset of st.file_uploader by changing its key
-    # This is the fix for the file uploader not clearing.
     if 'file_uploader_key' not in st.session_state:
          st.session_state['file_uploader_key'] = 0
          
@@ -285,7 +285,7 @@ def clear_all_data():
 st.set_page_config(page_title="Vehicle Plate Recognition & Specification", layout="wide")
 st.title("License Plate Recognition & Vehicle Specification Extraction")
 
-# --- CUSTOM CSS BLOCK for LARGER PLATE TEXT---
+# --- CUSTOM CSS BLOCK for LARGER PLATE TEXT ---
 st.markdown("""
 <style>
 /* Target the element that contains the green license plate text (inline code block) */
@@ -301,19 +301,22 @@ st.markdown("""
 st.markdown("Upload **car images**. We will process each image sequentially.")
 st.markdown("---")
 
-# Initialize session state for analysis results
+# Initialize session state for analysis results and file uploader key
 if 'analysis_results' not in st.session_state:
     st.session_state['analysis_results'] = []
+if 'file_uploader_key' not in st.session_state:
+    st.session_state['file_uploader_key'] = 0
     
 # *** Enable Multiple Files ***
 uploaded_files = st.file_uploader("Upload Image(s) (JPG or PNG)", 
                                   type=["jpg", "jpeg", "png"],
-                                  accept_multiple_files=True)
+                                  accept_multiple_files=True,
+                                  key=st.session_state['file_uploader_key']) 
 
 col_buttons_1, col_buttons_2, _ = st.columns([1, 1, 3])
 
 if uploaded_files:
-    # --- Analyze Button ---
+    # --- Analyze Button (Only appears if files are uploaded) ---
     if col_buttons_1.button(f'Analyze {len(uploaded_files)} Vehicle(s)', 
                  type="primary", 
                  key="analyze_btn",
@@ -325,12 +328,14 @@ if uploaded_files:
         if not st.session_state.get('analysis_results'):
              st.session_state['run_analysis'] = False
              
-# --- Clear All Button (Placed next to Analyze Button) ---
-if col_buttons_2.button("🗑️ Clear All Data & Restart", 
-                       key="clear_btn",
-                       help="Clears all uploaded files, analysis results, and resets the page.",
-                       type="secondary"):
-    clear_all_data()
+# --- Clear All Button (MODIFIED: Conditional Display) ---
+# The button appears if files are uploaded OR if analysis results exist
+if uploaded_files or st.session_state.get('analysis_results'):
+    if col_buttons_2.button("🗑️ Clear All Data & Restart", 
+                           key="clear_btn",
+                           help="Clears all uploaded files, analysis results, and resets the page.",
+                           type="secondary"):
+        clear_all_data()
 
 st.markdown("---")
 
@@ -545,7 +550,7 @@ if uploaded_files:
 else:
     st.info("Please upload one or more images to begin.")
 
-# --- Footer Section (Unchanged) ---
+# --- Footer Section ---
 st.markdown("---")
 
 footer_html = """
